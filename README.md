@@ -173,3 +173,60 @@ os：支持的操作系统
 - asm()!宏的用法是什么
 - ecall指令的用法是什么
 - 如何设置栈名，栈大小和栈顶，栈底
+
+#### 2024/10/16
+
+##### 事件
+
+- 学习了实验1中实现应用程序和批处理操作系统的内容
+
+##### 学习内容
+
+- 批处理程序：多个程序打包到一起加载到计算机，一个一个地依次执行
+- 特权级：特权级的目的是保护OS不受出错程序的干扰，实现用户态和内核态的分离，实现用户态和内核态的隔离
+- rust的一些注解：
+  - #![feature(linkage)] ：启用弱链接特性
+  - #[link_section = ".text.entry"]：将函数编译后的代码放在代码段`.text.entry`中
+  - #[linkage = "weak"]：将符号定义为弱标志
+- 弱标志的理解：比如说lib.rs和bin目录下都有main，而lib.rs下的main被标记为弱标志，那么bin目录下的main具有更高的优先级。也就是说链接器会使用 `bin` 目录下的函数作为 `main` 。
+- 对于用户态程序，我们可以使用ecall指令调用批处理系统接口，主要流程是：应用程序调用ecall，由于应用程序运行在用户态（即 U 模式）， `ecall` 指令会触发名为 `Environment call from U-mode` 的异常， 并 Trap 进入 S 模式执行批处理系统针对这个异常特别提供的服务程序。 
+- RISC-V 寄存器编号从 `0~31` ，表示为 `x0~x31` 。 其中： - `x10~x17` : 对应 `a0~a7` - `x1` ：对应 `ra`
+- ecall约定：寄存器 `a0~a6` 保存系统调用的参数， `a0` 保存系统调用的返回值， 寄存器 `a7` 用来传递 syscall ID
+- 生成应用程序二进制文件的流程：
+  - 对于 `src/bin` 下的每个应用程序， 在 `target/riscv64gc-unknown-none-elf/release` 目录下生成一个同名的 ELF 可执行文件；
+  - 使用 objcopy 二进制工具删除所有 ELF header 和符号，得到 `.bin` 后缀的纯二进制镜像文件。 它们将被链接进内核，并由内核在合适的时机加载到内存。
+- link_app.S将应用程序链接到内核，从这段代码可以学会一些汇编语法
+
+```asm
+.align 3
+ 4    .section .data  #表明这是一个数据段
+ 5    .global _num_app  #定义一个全局变量_num_app
+ 6_num_app:  #是一个数组
+ 7    .quad 3  #第一个元素为数组大小
+ 8    .quad app_0_start   #后面则按照顺序放置每个应用程序的起始地址
+ 9    .quad app_1_start
+10    .quad app_2_start
+11    .quad app_2_end   #最后一个应用程序的结束位置
+12
+13    .section .data
+14    .global app_0_start  #指定开始位置
+15    .global app_0_end    #指定结束位置
+16app_0_start:
+17    .incbin "../user/target/riscv64gc-unknown-none-elf/release/hello_world.bin"  #插入应用二进制程序
+18app_0_end:
+19
+20    .section .data
+21    .global app_1_start
+22    .global app_1_end
+23app_1_start:
+24    .incbin "../user/target/riscv64gc-unknown-none-elf/release/bad_address.bin"
+25app_1_end:
+```
+
+- 在操作系统中我们需要实现一个应用管理器对象AppManager，其他操作系统也会有这玩意，有的叫elfloader
+- 用容器 `UPSafeCell` 包裹 `AppManager` 是为了防止全局对象 `APP_MANAGER` 被重复获取。
+-  `lazy_static!` 可以让静态变量第一次被使用到的时候才会进行实际的初始化工作。
+
+##### 问题
+
+- 暂无
